@@ -154,10 +154,23 @@ void app_main()
      */
     esp_rmaker_console_init();
     app_driver_init();
-    app_driver_set_state(DEFAULT_POWER);
+    bool last_state = 0;
+    esp_err_t err = nvs_flash_init();
+    nvs_handle_t nvs;
+    if (nvs_open("storage", NVS_READONLY, &nvs) == ESP_OK) {
+        uint8_t saved_state = 0;
+        if (nvs_get_u8(nvs, "relay_state", &saved_state) == ESP_OK) {
+            // printf("\n\nget %d\n\n",saved_state);
+            last_state = saved_state;
+            ESP_LOGI(TAG, "recovery relay state: %s", last_state ? "ON" : "OFF");
+        }
+        nvs_close(nvs);
+    }
+    app_driver_set_state(last_state);
+
 
     /* Initialize NVS. */
-    esp_err_t err = nvs_flash_init();
+    
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
@@ -191,7 +204,7 @@ void app_main()
      * You can optionally use the helper API esp_rmaker_switch_device_create() to
      * avoid writing code for adding the name and power parameters.
      */
-    switch_device = esp_rmaker_device_create("Switch", ESP_RMAKER_DEVICE_SWITCH, NULL);
+    switch_device = esp_rmaker_device_create("Switch", ESP_RMAKER_DEVICE_LIGHTBULB, NULL);
 
     /* Add the write callback for the device. We aren't registering any read callback yet as
      * it is for future use.
@@ -251,5 +264,21 @@ void app_main()
         ESP_LOGE(TAG, "Could not start Wifi. Aborting!!!");
         vTaskDelay(5000/portTICK_PERIOD_MS);
         abort();
+    }
+    else
+    {
+        vTaskDelay(5000/portTICK_PERIOD_MS);
+        if (err == ESP_OK) {
+            esp_rmaker_param_update_and_report(
+                esp_rmaker_device_get_param_by_name(switch_device, ESP_RMAKER_DEF_POWER_NAME),
+                esp_rmaker_bool(last_state));
+            ESP_LOGI(TAG,"Update status to cloud: %s\n", last_state ? "ON" : "OFF");
+            // esp_rmaker_param_t *power_param = esp_rmaker_device_get_param_by_type(switch_device, ESP_RMAKER_PARAM_POWER);
+            // if (power_param) {
+            //     esp_rmaker_param_update(power_param, esp_rmaker_bool(last_state));
+            //     ESP_LOGI(TAG,"Update status to cloud: %s\n", last_state ? "ON" : "OFF");
+            // }
+        }
+        
     }
 }

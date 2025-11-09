@@ -17,6 +17,8 @@
 #include <app_reset.h>
 #include <ws2812_led.h>
 #include "app_priv.h"
+#include "nvs_flash.h"
+#include "nvs.h"
 
 /* This is the button that is used for toggling the power */
 #define BUTTON_GPIO          CONFIG_EXAMPLE_BOARD_BUTTON_GPIO
@@ -24,7 +26,7 @@
 
 /* This is the GPIO on which the power will be set */
 #define OUTPUT_GPIO    CONFIG_EXAMPLE_OUTPUT_GPIO
-static bool g_power_state = DEFAULT_POWER;
+static bool g_power_state = 0;
 
 /* These values correspoind to H,S,V = 120,100,10 */
 #define DEFAULT_RED     0
@@ -116,6 +118,14 @@ int IRAM_ATTR app_driver_set_state(bool state)
     if(g_power_state != state) {
         g_power_state = state;
         set_power_state(g_power_state);
+    }
+    // Lưu vào NVS
+    nvs_handle_t nvs;
+    if (nvs_open("storage", NVS_READWRITE, &nvs) == ESP_OK) {
+        // printf("\n\nset %d\n\n",state);
+        nvs_set_u8(nvs, "relay_state", state);
+        nvs_commit(nvs);
+        nvs_close(nvs);
     }
     return ESP_OK;
 }
